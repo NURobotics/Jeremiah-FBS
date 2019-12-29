@@ -1,64 +1,54 @@
 void pollSerial() {
-  while(Serial1.available()) {
-    if(serialState == SERIAL_WAIT) {
-      if(Serial1.read() == 0x7E) {
-        serialState = SERIAL_PACKETSTART;
-        bytesRead = 0;
-        continue;
-      }
-    }
-    packet[bytesRead] = Serial1.read();
-    bytesRead++;
-
-    if(bytesRead >= 10) {
-      receivePacket();
-      bytesRead = 0;
-      serialState = SERIAL_WAIT;
-    }
-    
+  if(PS4.isConnected()) {
+    receivePacket();
   }
 }
 
 void receivePacket() {
   lastReceived = micros();
   
-  //status byte
-  byte stat = packet[0];//nothing is currently done here. Can be used to transmit switch states, etc.
-  if(senseMode != BEACON_SENSING) {//If we are in beacon-only mode due to a fault or deliberate code change, the sense select switch does nothing
-    if(stat & 0x01) {//bit one is the sense select switch for choosing whether beacon is used
-      senseMode = HYBRID_SENSING;
-    } else {
+  if(PS4.data.button.options && senseMode != BEACON_SENSING) {//If we are in beacon-only mode due to a fault or deliberate code change, the sense select switch does nothing
+    if(senseMode == HYBRID_SENSING) {
       senseMode = ACCEL_SENSING;
+    } else {
+      senseMode = HYBRID_SENSING;
     }
   }
 
-  flip = (stat & 0x02) > 0;//indicates whether the bot is inverted. 1 is inverted, 0 is normal
+  if (PS4.data.button.l3) {
+    flip = !flip;//indicates whether the bot is inverted. 1 is inverted, 0 is normal
+  }
 
-  byte tankOverride = (stat & 0x04) > 0;//this set the throttle to 0, forcing the bot into tank mode. Faster than adjusting the throttle pot.
+  byte tankOverride = PS4.data.button.down; //this set the throttle to 0, forcing the bot into tank mode. Faster than adjusting the throttle pot.
 
   //thumbstick X
-  thumbX = map((((uint16_t) packet[1]) << 8) | ((uint16_t) packet[2]), 0, 1024, -100, 100);
+  thumbX = PS4.data.analog.stick.lx;
   //thumbstick Y
-  thumbY = map((((uint16_t) packet[3]) << 8) | ((uint16_t) packet[4]), 0, 1024, -100, 100);
+  thumbY = PS4.data.analog.stick.ly;
   //throttle
   if(tankOverride) {
     throt = 0;
   } else {
-    throt = map((((uint16_t) packet[5]) << 8) | ((uint16_t) packet[6]), 0, 1024, 0, 100);
+    throt = PS4.data.analog.button.l2;
   }
   //heading
-  head = ((uint16_t) packet[7]) << 8 | ((uint16_t) packet[8]);
+  //head = ((uint16_t) packet[7]) << 8 | ((uint16_t) packet[8]);
   //enable
-  en = packet[9];
+  if (PS4.data.button.l3 && PS4.data.button.cross) {
+    en = 1;
+  }
+  else {
+    en = 0;
+  }
 
   if(state == STATE_SPIN) {
     //calculate the commanded direction and speed
-    meltyThrottle = sqrt(thumbX*thumbX + thumbY*thumbY)/2;
+   meltyThrottle = sqrt(thumbX*thumbX + thumbY*thumbY)/2;
    int16_t calcAngle = (int16_t) (atan2((double) thumbY, (double) thumbX*(flip*2-1))*180.0/PI);
    if(calcAngle < 0) calcAngle += 360;
    meltyAngle = (uint16_t) calcAngle;
   }
-
+  /*
   //now we build the return packet
   packet[0] = 0x7E;//start of packet byte
   
@@ -69,6 +59,7 @@ void receivePacket() {
   packet[3] = 0x00;
 
   Serial1.write(packet, 4);
+  */
   //*/
   
   /*/this code is used in calibration testing

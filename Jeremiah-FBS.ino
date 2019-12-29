@@ -1,5 +1,6 @@
 #include <PS4Controller.h>
 #include <SPI.h>
+//#include <i2c_t3.h> // https://github.com/nox771/i2c_t3
 #include <Wire.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -11,24 +12,15 @@
 #define motor2 4
 #define vBatt A0
 
-//serial
-#define SERIAL_WAIT 0
-#define SERIAL_PACKETSTART 1
-byte serialState = 0;
-unsigned long packetTime = 0;
-unsigned long packetTimeout = 200;
-byte packet[10];
-byte bytesRead = 0;
-
 unsigned long lastReceived = 0;
 
 //controls
-byte flip = 0;
+bool flip = 0;
 int16_t thumbX = 0;
 int16_t thumbY = 0;
 uint16_t throt = 0;
 uint16_t head = 0;
-byte en = 0;
+bool en = 0;
 //leds
 
 //**********************//
@@ -76,14 +68,14 @@ uint16_t getBatteryVoltage() { //returns voltage in millivolts
 
 
 void setMotorSpeed(int motor, int spd) {
-  spd = constrain(spd, -100, 100);//make sure our speed value is valid. This lets us be lazier elsewhere
+  spd = constrain(spd, -128, 127);//make sure our speed value is valid. This lets us be lazier elsewhere
   //apply a deadband
   if(spd < 5 && spd > -5) spd = 0;
 
   if(motor == motor1) spd *= -1;
 
   // Change to ESP32 compatable
-  // analogWrite(motor, map(spd, -100, 100, 64, 128));
+  // analogWrite(motor, map(spd, -128, 127, 64, 128));
 }
 
 void goIdle() {
@@ -121,11 +113,13 @@ void setup() {
   Serial.begin(57600);
   Serial1.begin(57600);
   SPI.begin();
+  PS4.begin("03:03:03:03:03:03");
   pinMode(enablePin, OUTPUT);
   digitalWrite(enablePin, HIGH);
 
   pinMode(PIN_IR, INPUT);
 
+  // Something to do with the i2c_t3.h file. Change to ESP32 compatable
   //Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, 1800000, I2C_OP_MODE_IMM);//1.8MHz clock rate
   //Wire.begin();
 
@@ -170,7 +164,7 @@ void loop() {
   switch(state) {
     case STATE_IDLE:
 
-      if(en == 0xAA) {
+      if(en) {
         goTank();
       }
       
@@ -184,7 +178,7 @@ void loop() {
         goSpin();
       }
 
-      if(en != 0xAA) {
+      if(!en) {
         goIdle();
       }
       break;
@@ -196,7 +190,7 @@ void loop() {
         goTank();
       }
 
-      if(en != 0xAA) {
+      if(!en) {
         goIdle();
       }
     default:

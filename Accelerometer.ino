@@ -39,8 +39,9 @@ uint8_t readI2CRegNBlocking(uint8_t addr, uint8_t subaddr, uint8_t buflen, uint8
   Wire.write(subaddr | 0x80);//the current accelerometer requires that the msb be set high to do a multi-byte transfer
   Wire.endTransmission();
   Wire.requestFrom(addr, buflen);
-  while(Wire.available()) *(buf++) = Wire.readByte();
-  return Wire.getError();
+  while(Wire.available()) *(buf++) = Wire.read();
+  // i2c_t3.h related, Change to ESP32 compatable
+  return 1; //Wire.getError();
 }
 
 void configAccelerometer() {
