@@ -1,5 +1,8 @@
-# MeltyHalo
-Arduino code to control my MeltyBrain battlebot
+# Jeremiah
+Arduino code to control a 1lb full body spinner, Jeremiah!
+Code originally from https://github.com/swallenhardware/MeltyHalo
+
+## Below is from the original repo's readme:
 
 This Arduino project is the control code for Halo, the beetleweight Battlebot designed by Spencer Allen and Pierce Jensen.
 

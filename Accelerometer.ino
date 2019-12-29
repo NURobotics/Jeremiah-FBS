@@ -121,4 +121,3 @@ void runAccelerometer() {
     accelAngle = (angleAtLastMeasurement + (deltaT/periodPredicted + deltaT/robotPeriod[0])/2) % 360;
   }
 }
-

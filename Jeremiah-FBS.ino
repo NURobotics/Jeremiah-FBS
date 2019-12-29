@@ -1,30 +1,15 @@
-#include <Adafruit_DotStar.h>
+#include <PS4Controller.h>
 #include <SPI.h>
-#include <i2c_t3.h>
-//#include <Wire.h>
+#include <Wire.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_task_wdt.h"
 
 #define enablePin 22
 #define PIN_IR 15
 #define motor1 3
 #define motor2 4
 #define vBatt A0
-
-//animations
-unsigned long nextFrameAt = 0;
-
-struct Frame {
-  uint16_t duration;//in degrees or milliseconds
-  struct {
-    uint8_t red;
-    uint8_t green;
-    uint8_t blue;
-  } led[5];
-  struct Frame *next;
-} *animationHead, *currentFrame, *idleHead, *tankHead, *spinHead;
-
-void defineAnimations(void);
-void resetStaticAnimation(void);
-void resetDynamicAnimation(void);
 
 //serial
 #define SERIAL_WAIT 0
@@ -45,7 +30,6 @@ uint16_t throt = 0;
 uint16_t head = 0;
 byte en = 0;
 //leds
-Adafruit_DotStar strip = Adafruit_DotStar(5, DOTSTAR_GBR);
 
 //**********************//
 // MELTYBRAIN VARIABLES //
@@ -84,10 +68,6 @@ uint8_t state = 1;
 void pollSerial(void);
 void receivePacket(void);
 
-void shiftToLEDs(void);
-void runStaticAnimation(void);
-void runDynamicAnimation(void);
-
 void runMeltyBrain(void);
 
 uint16_t getBatteryVoltage() { //returns voltage in millivolts
@@ -102,7 +82,8 @@ void setMotorSpeed(int motor, int spd) {
 
   if(motor == motor1) spd *= -1;
 
-  analogWrite(motor, map(spd, -100, 100, 64, 128));
+  // Change to ESP32 compatable
+  // analogWrite(motor, map(spd, -100, 100, 64, 128));
 }
 
 void goIdle() {
@@ -111,18 +92,12 @@ void goIdle() {
   //digitalWrite(enablePin, HIGH);
   setMotorSpeed(motor1, 0);
   setMotorSpeed(motor2, 0);
-  
-  animationHead = idleHead;
-  resetStaticAnimation();
 }
 
 void goTank() {
   state = STATE_TANK;
 
   digitalWrite(enablePin, LOW);
-  
-  animationHead = tankHead;
-  resetStaticAnimation();
 }
 
 void goSpin() {
@@ -131,18 +106,10 @@ void goSpin() {
   digitalWrite(enablePin, LOW);
 
   beaconEdgesRecorded = 0;
-
-  animationHead = spinHead;
-  currentFrame = animationHead;
-  nextFrameAt = currentFrame->duration + angle;
-  shiftToLEDs();
 }
 
 void feedWatchdog() {
-  noInterrupts();
-  WDOG_REFRESH = 0xA602;
-  WDOG_REFRESH = 0xB480;
-  interrupts();
+  esp_task_wdt_reset();
 }
 
 //this runs if the robot code hangs! cut off the motors
@@ -159,32 +126,15 @@ void setup() {
 
   pinMode(PIN_IR, INPUT);
 
-  Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, 1800000, I2C_OP_MODE_IMM);//1.8MHz clock rate
+  //Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, 1800000, I2C_OP_MODE_IMM);//1.8MHz clock rate
   //Wire.begin();
 
-  //SETUP WATCHDOG
-  //settings taken from: https://bigdanzblog.wordpress.com/2017/10/27/watch-dog-timer-wdt-for-teensy-3-1-and-3-2/
-  noInterrupts();
-  WDOG_UNLOCK = WDOG_UNLOCK_SEQ1;
-  WDOG_UNLOCK = WDOG_UNLOCK_SEQ2;
-  delayMicroseconds(1);
+  esp_task_wdt_init(1, true);
 
-  WDOG_TOVALH = 0x006d; //1 second timer
-  WDOG_TOVALL = 0xdd00;
-  WDOG_PRESC = 0x400;
-  WDOG_STCTRLH |= WDOG_STCTRLH_ALLOWUPDATE | WDOG_STCTRLH_WDOGEN | 
-                  WDOG_STCTRLH_WAITEN | WDOG_STCTRLH_STOPEN |
-                  WDOG_STCTRLH_CLKSRC | WDOG_STCTRLH_IRQRSTEN;
-  interrupts();
-
-  NVIC_ENABLE_IRQ(IRQ_WDOG);//enable watchdog interrupt
-
-  analogWriteFrequency(3, 250);//this changes the frequency of both motor outputs
+  // Change to ESP32 compatable
+  // analogWriteFrequency(3, 250);//this changes the frequency of both motor outputs
 
   configAccelerometer();
-
-  //build the animations
-  defineAnimations();
 
   goIdle();
 }
@@ -219,7 +169,6 @@ void loop() {
 
   switch(state) {
     case STATE_IDLE:
-      runStaticAnimation();
 
       if(en == 0xAA) {
         goTank();
@@ -230,8 +179,6 @@ void loop() {
 
       setMotorSpeed(motor1, thumbY+thumbX/2);
       setMotorSpeed(motor2, thumbY-thumbX/2);
-    
-      runStaticAnimation();
       
       if(throt > 2) {
         goSpin();
@@ -244,8 +191,6 @@ void loop() {
     case STATE_SPIN:
 
       runMeltyBrain();//manage all of the sensors and predict our current heading
-     
-      runDynamicAnimation();
       
       if(throt < 2) {
         goTank();
@@ -258,6 +203,3 @@ void loop() {
       break;
   }
 }
-
-
-
