@@ -73,7 +73,7 @@ uint16_t angleAtLastMeasurement;
 int16_t zAccel;
 
 void runAccelerometer() {
-  //this uses blocking I2C, which makes it relatively slow. But given that we run our I2C ar 1.8MHz we will likely be okay
+  //this uses blocking I2C, which makes it relatively slow. But given that we run our I2C at 1.8MHz we will likely be okay
   if(micros() - accelMeasTime[0] > measurementPeriod) {
     //shift all of the old values down
     for(int i=1; i>0; i--) {

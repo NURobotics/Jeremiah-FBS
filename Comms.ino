@@ -1,9 +1,3 @@
-void pollSerial() {
-  if(PS4.isConnected()) {
-    receivePacket();
-  }
-}
-
 void receivePacket() {
   lastReceived = micros();
   
@@ -34,7 +28,7 @@ void receivePacket() {
   //heading
   //head = ((uint16_t) packet[7]) << 8 | ((uint16_t) packet[8]);
   //enable
-  if (PS4.data.button.l3 && PS4.data.button.cross) {
+  if (PS4.data.button.r1 && PS4.data.button.cross) {
     en = 1;
   }
   else {
@@ -47,6 +41,11 @@ void receivePacket() {
    int16_t calcAngle = (int16_t) (atan2((double) thumbY, (double) thumbX*(flip*2-1))*180.0/PI);
    if(calcAngle < 0) calcAngle += 360;
    meltyAngle = (uint16_t) calcAngle;
+  }
+
+  // Flash controller if it's battery is about to run out
+  if (PS4.data.status.battery < 2 && !PS4.data.status.charging) {
+    PS4.setFlashRate(500, 500);
   }
   /*
   //now we build the return packet
@@ -72,4 +71,16 @@ void receivePacket() {
 
   Serial1.write(packet, 7);
   //*/
+}
+
+void controllerConnect() {
+  Serial.println("Connected!.");
+  PS4.setLed(255,255,255);
+}
+
+void send2Controller() {
+  if (PS4.isConnected() && micros() - lastSent > 10000) {
+    PS4.sendToController();
+    lastSent = micros();
+  }
 }

@@ -13,6 +13,8 @@
 #define vBatt A0
 
 unsigned long lastReceived = 0;
+unsigned long lastSent = 0;
+#define second 1000000
 
 //controls
 bool flip = 0;
@@ -21,7 +23,10 @@ int16_t thumbY = 0;
 uint16_t throt = 0;
 uint16_t head = 0;
 bool en = 0;
-//leds
+
+// Watchdog
+const int loopTimeCtl = 0;
+hw_timer_t *timer = NULL;
 
 //**********************//
 // MELTYBRAIN VARIABLES //
@@ -34,7 +39,7 @@ uint16_t meltyThrottle = 0;
 #define BEACON_SENSING 0x01//if this is defined, we are angle sensing using only the infrared receiver
 #define ACCEL_SENSING 0x02//if this is defined, we are angle sensing using only the accelerometer
 #define HYBRID_SENSING 0x03//if this is defined, we are angle sensing using both the beacon and the accelerometer
-uint8_t senseMode = HYBRID_SENSING;
+uint8_t senseMode = BEACON_SENSING;
 
 //BEACON
 boolean beacon = false;//this variable keeps track of the status of the beacon internally. If this variable and the digital read don't match, it's a rising or falling edge
@@ -50,22 +55,21 @@ uint8_t beaconEdgesRecorded = 0;//this keeps track of how many beacon pulses we'
 //ACCELEROMETER
 void configAccelerometer(void);
 
-//states
-uint8_t state = 1;
-
 #define STATE_IDLE 1
 #define STATE_TANK 2
 #define STATE_SPIN 3
 
-void pollSerial(void);
+//states
+uint8_t state = STATE_IDLE;
+
 void receivePacket(void);
+void controllerConnect(void);
 
 void runMeltyBrain(void);
 
 uint16_t getBatteryVoltage() { //returns voltage in millivolts
   return (analogRead(vBatt)*49)/3;
 }
-
 
 void setMotorSpeed(int motor, int spd) {
   spd = constrain(spd, -128, 127);//make sure our speed value is valid. This lets us be lazier elsewhere
@@ -80,6 +84,7 @@ void setMotorSpeed(int motor, int spd) {
 
 void goIdle() {
   state = STATE_IDLE;
+  PS4.setLed(128, 128, 128);
 
   //digitalWrite(enablePin, HIGH);
   setMotorSpeed(motor1, 0);
@@ -88,12 +93,14 @@ void goIdle() {
 
 void goTank() {
   state = STATE_TANK;
+  PS4.setLed(255, 255, 0);
 
   digitalWrite(enablePin, LOW);
 }
 
 void goSpin() {
   state = STATE_SPIN;
+  PS4.setLed(255, 0, 0);
 
   digitalWrite(enablePin, LOW);
 
@@ -101,19 +108,23 @@ void goSpin() {
 }
 
 void feedWatchdog() {
-  esp_task_wdt_reset();
+  timerWrite(timer, 0);
 }
 
 //this runs if the robot code hangs! cut off the motors
-void watchdog_isr() {
+void IRAM_ATTR ESTOP(){
+  goIdle();
   digitalWrite(enablePin, HIGH);
 }
 
 void setup() {
-  Serial.begin(57600);
-  Serial1.begin(57600);
-  SPI.begin();
+  Serial.begin(9600);
+  
+  PS4.attach(receivePacket);
+  PS4.attachOnConnect(controllerConnect);
   PS4.begin("03:03:03:03:03:03");
+  
+  SPI.begin();
   pinMode(enablePin, OUTPUT);
   digitalWrite(enablePin, HIGH);
 
@@ -123,7 +134,10 @@ void setup() {
   //Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, 1800000, I2C_OP_MODE_IMM);//1.8MHz clock rate
   //Wire.begin();
 
-  esp_task_wdt_init(1, true);
+  timer = timerBegin(0, 80, true); //timer 0, div 80
+  timerAttachInterrupt(timer, &ESTOP, true);
+  timerAlarmWrite(timer, 1000000, false); //set time in us, 1 second
+  timerAlarmEnable(timer); //enable interrupt
 
   // Change to ESP32 compatable
   // analogWriteFrequency(3, 250);//this changes the frequency of both motor outputs
@@ -138,13 +152,12 @@ void loop() {
   //Bark bark
   feedWatchdog();
 
-  //check for incoming messages
-  pollSerial();
-
   //make sure comms haven't timed out
-  if(micros() - lastReceived > 1000*1000 && state != STATE_IDLE) {
+  long td = micros() - lastReceived;
+  if(td > second && state != STATE_IDLE) {
     en = 0x0;
     goIdle();
+    Serial.println(td);
   }
 
   /*
@@ -196,4 +209,6 @@ void loop() {
     default:
       break;
   }
+
+  send2Controller();
 }
