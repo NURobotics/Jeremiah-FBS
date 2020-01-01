@@ -39,7 +39,7 @@ uint16_t meltyThrottle = 0;
 #define BEACON_SENSING 0x01//if this is defined, we are angle sensing using only the infrared receiver
 #define ACCEL_SENSING 0x02//if this is defined, we are angle sensing using only the accelerometer
 #define HYBRID_SENSING 0x03//if this is defined, we are angle sensing using both the beacon and the accelerometer
-uint8_t senseMode = BEACON_SENSING;
+uint8_t senseMode = HYBRID_SENSING;
 
 //BEACON
 boolean beacon = false;//this variable keeps track of the status of the beacon internally. If this variable and the digital read don't match, it's a rising or falling edge
@@ -86,7 +86,7 @@ void goIdle() {
   state = STATE_IDLE;
   PS4.setLed(128, 128, 128);
 
-  //digitalWrite(enablePin, HIGH);
+  digitalWrite(enablePin, HIGH);
   setMotorSpeed(motor1, 0);
   setMotorSpeed(motor2, 0);
 }
@@ -114,7 +114,6 @@ void feedWatchdog() {
 //this runs if the robot code hangs! cut off the motors
 void IRAM_ATTR ESTOP(){
   goIdle();
-  digitalWrite(enablePin, HIGH);
 }
 
 void setup() {
@@ -157,7 +156,6 @@ void loop() {
   if(td > second && state != STATE_IDLE) {
     en = 0x0;
     goIdle();
-    Serial.println(td);
   }
 
   /*
