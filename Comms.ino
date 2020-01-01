@@ -13,38 +13,29 @@ void receivePacket() {
     flip = !flip;//indicates whether the bot is inverted. 1 is inverted, 0 is normal
   }
 
-  byte tankOverride = PS4.data.button.down; //this set the throttle to 0, forcing the bot into tank mode. Faster than adjusting the throttle pot.
-
   //thumbstick X
   thumbX = PS4.data.analog.stick.lx;
   //thumbstick Y
   thumbY = PS4.data.analog.stick.ly;
   //throttle
-  if(tankOverride) {
-    throt = 0;
-  } else {
-    throt = PS4.data.analog.button.l2;
-  }
+  throt = PS4.data.analog.button.l2;
+
   //heading
   //head = ((uint16_t) packet[7]) << 8 | ((uint16_t) packet[8]);
-  //enable
-  if (PS4.data.button.r1 && PS4.data.button.cross) {
-    en = 1;
-  }
-  else {
-    en = 0;
-  }
 
-  if(state == STATE_SPIN) {
+  //enable
+  en = PS4.data.button.r1 && PS4.data.button.cross;
+
+  if (state == STATE_SPIN) {
     //calculate the commanded direction and speed
-   meltyThrottle = sqrt(thumbX*thumbX + thumbY*thumbY)/2;
-   int16_t calcAngle = (int16_t) (atan2((double) thumbY, (double) thumbX*(flip*2-1))*180.0/PI);
-   if(calcAngle < 0) calcAngle += 360;
-   meltyAngle = (uint16_t) calcAngle;
+    meltyThrottle = sqrt(thumbX*thumbX + thumbY*thumbY)/2;
+    int16_t calcAngle = (int16_t) (atan2((double) thumbY, (double) thumbX*(flip*2-1))*180.0/PI);
+    if (calcAngle < 0) calcAngle += 360;
+    meltyAngle = (uint16_t) calcAngle;
   }
 
   // Flash controller if it's battery is about to run out
-  if (PS4.data.status.battery < 2 && !PS4.data.status.charging) {
+  if (PS4.data.status.battery < 3 && !PS4.data.status.charging) {
     PS4.setFlashRate(500, 500);
   }
   /*
