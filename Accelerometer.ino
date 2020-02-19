@@ -1,52 +1,17 @@
-//H3LIS331DL defines
-#define ADDR_ACCEL 0x18
-
-#define WHO_AM_I 0x0F
-#define CTRL_REG1 0x20
-#define CTRL_REG2 0x21
-#define CTRL_REG3 0x22
-#define CTRL_REG4 0x23
-#define CTRL_REG5 0x24
-#define HP_FILTER_RESET 0x25
-#define REFERENCE 0x26
-#define STATUS_REG 0x27
-#define OUT_X_L 0x28
-#define OUT_X_H 0x29
-#define OUT_Y_L 0x2A
-#define OUT_Y_H 0x2B
-#define OUT_Z_L 0x2C
-#define OUT_Z_H 0x2D
-#define INT1_CFG 0x30
-#define INT1_SRC 0x31
-#define INT1_THS 0x32
-#define INT1_DURATION 0x33
-#define INT2_CFG 0x34
-#define INT2_SRC 0x35
-#define INT2_THS 0x36
-#define INT2_DURATION 0x37
-
-//write a single byte to an I2C device
-uint8_t writeI2CReg8Blocking(uint8_t addr, uint8_t subaddr, uint8_t data) {
-  Wire.beginTransmission(addr);
-  Wire.write(subaddr);
-  Wire.write(data);
-  return Wire.endTransmission();
-}
-
-//read N bytes from an I2C device
-uint8_t readI2CRegNBlocking(uint8_t addr, uint8_t subaddr, uint8_t buflen, uint8_t *buf) {
-  Wire.beginTransmission(addr);
-  Wire.write(subaddr | 0x80);//the current accelerometer requires that the msb be set high to do a multi-byte transfer
-  Wire.endTransmission();
-  Wire.requestFrom(addr, buflen);
-  while(Wire.available()) *(buf++) = Wire.read();
-  // i2c_t3.h related, Change to ESP32 compatable
-  return 1; //Wire.getError();
+bool readAccel(int16_t &x, int16_t &y, int16_t &z) {
+  if (xl.newXData() || xl.newYData() || xl.newZData()) {
+    xl.readAxes(x, y, z);
+    return true;
+  }
+  return false;
 }
 
 void configAccelerometer() {
-  writeI2CReg8Blocking(ADDR_ACCEL, CTRL_REG1, 0x2E);//1000Hz, normal mode, YZ enabled
-  writeI2CReg8Blocking(ADDR_ACCEL, CTRL_REG4, 0x30);//block data update enabled, 400g full scale
+  Wire.begin();
+  xl.setI2CAddr(0x19);
+  xl.begin(LIS331::USE_I2C);
+  xl.setFullScale(LIS331::HIGH_RANGE);
+  xl.setODR(LIS331::DR_1000HZ);
 }
 
 //we read from the accelerometer much slower than the accelerometer's data rate to make sure we always get new data
@@ -82,18 +47,16 @@ void runAccelerometer() {
     //put in the new value
     accelMeasTime[0] = micros();
     
-    uint8_t accelBuf[6];
-    if(readI2CRegNBlocking(ADDR_ACCEL, OUT_X_L, 6, accelBuf) > 0) {
-      senseMode = BEACON_SENSING;//if communication with the accelerometer ever fails, we revert to beacon-only mode
+    int16_t xAccel;
+    int16_t yAccel;
+    int16_t zAccel;
+    if (!readAccel(xAccel, yAccel, zAccel)) {
+      senseMode = BEACON_SENSING; //if communication with the accelerometer ever fails, we revert to beacon-only mode
       Serial.println("accelerometer failed");
     }
-  
-    //int16_t xAccel = (((int16_t) accelBuf[1]) << 8) | (int16_t) accelBuf[0];//represents acceleration tangential to the ring, not useful to us
-    int16_t yAccel = (((int16_t) accelBuf[3]) << 8) | (int16_t) accelBuf[2];//represents acceleration axial to the ring, which shows which way the bot is flipped
-    zAccel = (((int16_t) accelBuf[5]) << 8) | (int16_t) accelBuf[4];//represents acceleration radial to the ring, which is a measure of rotation speed
 
     //shift all of the old values down
-    for(int i=1; i>0; i--) {
+    for (int i = 1; i > 0; i--) {
       robotPeriod[i] = robotPeriod[i-1];
     }
     
@@ -112,7 +75,9 @@ void runAccelerometer() {
 
     accelAngle = angleAtLastMeasurement;
     
-  } else {//if it isn't time to check the accelerometer, predict our current heading
+  }
+  else {
+    //if it isn't time to check the accelerometer, predict our current heading
     //predict the current velocity by extrapolating old data
     uint32_t newTime = micros();
     uint32_t periodPredicted = robotPeriod[1] + (newTime - accelMeasTime[1]) * (robotPeriod[0] - robotPeriod[1]) / (accelMeasTime[0] - accelMeasTime[1]);
