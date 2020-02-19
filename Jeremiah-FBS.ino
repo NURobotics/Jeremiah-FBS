@@ -10,7 +10,7 @@
 #define PIN_IR 15
 #define motor1 3
 #define motor2 4
-#define vBatt A0
+#define vBatt A13
 
 unsigned long lastReceived = 0;
 unsigned long lastSent = 0;
@@ -68,7 +68,7 @@ void controllerConnect(void);
 void runMeltyBrain(void);
 
 uint16_t getBatteryVoltage() { //returns voltage in millivolts
-  return (analogRead(vBatt)*49)/3;
+  return analogRead(vBatt)/480.0;
 }
 
 void setMotorSpeed(int motor, int spd) {
