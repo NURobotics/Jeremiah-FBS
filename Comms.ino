@@ -38,30 +38,6 @@ void receivePacket() {
   if (PS4.data.status.battery < 3 && !PS4.data.status.charging) {
     PS4.setFlashRate(500, 500);
   }
-  /*
-  //now we build the return packet
-  packet[0] = 0x7E;//start of packet byte
-  
-  //standard return packet
-  uint16_t batteryVoltage = getBatteryVoltage();
-  packet[1] = (byte) ((batteryVoltage & 0xFF00) >> 8);
-  packet[2] = (byte) (batteryVoltage & 0x00FF);
-  packet[3] = 0x00;
-
-  Serial1.write(packet, 4);
-  */
-  //*/
-  
-  /*/this code is used in calibration testing
-  packet[1] = (byte) (((beaconEdgeTime[0] - beaconEdgeTime[1]) & 0xFF000000) >> 24);
-  packet[2] = (byte) (((beaconEdgeTime[0] - beaconEdgeTime[1]) & 0x00FF0000) >> 16);
-  packet[3] = (byte) (((beaconEdgeTime[0] - beaconEdgeTime[1]) & 0x0000FF00) >> 8);
-  packet[4] = (byte) ((beaconEdgeTime[0] - beaconEdgeTime[1]) & 0x000000FF);
-  packet[5] = (byte) ((zAccel & 0xFF00) >> 8);
-  packet[6] = (byte) (zAccel & 0x00FF);
-
-  Serial1.write(packet, 7);
-  //*/
 }
 
 void controllerConnect() {
