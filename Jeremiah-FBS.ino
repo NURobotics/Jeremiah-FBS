@@ -1,16 +1,18 @@
 #include <PS4Controller.h>
-#include <SPI.h>
-//#include <i2c_t3.h> // https://github.com/nox771/i2c_t3
-#include <Wire.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_task_wdt.h"
+#include <SPI.h>
+#include "SparkFun_LIS331.h"
+#include <Wire.h>
 
 #define enablePin 22
 #define PIN_IR 15
 #define motor1 3
 #define motor2 4
 #define vBatt A13
+
+LIS331 xl;
 
 unsigned long lastReceived = 0;
 unsigned long lastSent = 0;
@@ -67,7 +69,7 @@ void controllerConnect(void);
 
 void runMeltyBrain(void);
 
-uint16_t getBatteryVoltage() { //returns voltage in Volts
+uint16_t getBatteryVoltage() { //returns voltage in millivolts
   return analogRead(vBatt)/480.0;
 }
 
@@ -129,10 +131,6 @@ void setup() {
 
   pinMode(PIN_IR, INPUT);
 
-  // Something to do with the i2c_t3.h file. Change to ESP32 compatable
-  //Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, 1800000, I2C_OP_MODE_IMM);//1.8MHz clock rate
-  //Wire.begin();
-
   timer = timerBegin(0, 80, true); //timer 0, div 80
   timerAttachInterrupt(timer, &ESTOP, true);
   timerAlarmWrite(timer, 1000000, false); //set time in us, 1 second
@@ -158,19 +156,17 @@ void loop() {
     goIdle();
   }
 
-  /*
   //check if battery voltage is below 3.2V/cell cutoff (2.5V/cell under load)
   uint16_t batteryReading  = getBatteryVoltage();
-  if((throt == 0 && batteryReading < 3200*4)) {
+  if((throt == 0 && batteryReading < 5)) {
     //disable motors
     digitalWrite(enablePin, HIGH);
-    //blank LEDs
-    strip.clear();
-    strip.show();
+    // RED LEDs
+    PS4.setLed(255,0,0);
+    PS4.sendToController();
     //sit until power is removed
     while(true) feedWatchdog();
   }
-  */
 
   switch(state) {
     case STATE_IDLE:
