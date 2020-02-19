@@ -67,7 +67,7 @@ void controllerConnect(void);
 
 void runMeltyBrain(void);
 
-uint16_t getBatteryVoltage() { //returns voltage in millivolts
+uint16_t getBatteryVoltage() { //returns voltage in Volts
   return analogRead(vBatt)/480.0;
 }
 
